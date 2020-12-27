@@ -4,6 +4,7 @@ from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 import random
+import asyncio
 
 from app.models.plant import *
 from app.models.fireman import *
@@ -35,6 +36,8 @@ class QGameOfLife(QWidget):
 
         self.show()
 
+        self.run()
+
     def generateFire(self):
         plants = self.getPlants()
 
@@ -43,7 +46,6 @@ class QGameOfLife(QWidget):
                 sleep(2)
                 try:
                     i = random.randint(0, len(plants) - 1)
-
                     plant = plants[i]
 
                     if plant.isBurning():
@@ -51,17 +53,16 @@ class QGameOfLife(QWidget):
 
                     fire = Fire(plant, plant.point)
                     fire.setFire()
-
                     cellItem = self.tableWidget.takeItem(plant.point.x, plant.point.y)
-
                     cellItem.setBackgroundColor(fire.getColor())
-
                     self.tableWidget.setItem(plant.point.x, plant.point.y, cellItem)
                 except Exception as ex:
                     continue
                 break
 
     def generateFireFighter(self):
+        self.firefighters = []
+
         for _ in range(FIREMAN_COUNT):
             while True:
                 try:
@@ -70,11 +71,13 @@ class QGameOfLife(QWidget):
 
                     if self.map[i][j].isFree():
                         self.map[i][j].setAccupied()
-                        plant = Firefighter(self.map[i][j])
-                        self.map[i][j].setElement(plant)
+                        firefighter = Firefighter(self.map[i][j])
+                        self.map[i][j].setElement(firefighter)
+
+                        self.firefighters.append(firefighter)
 
                         item = QTableWidgetItem()
-                        item.setIcon(QIcon(plant.getIcon()))
+                        item.setIcon(QIcon(firefighter.getIcon()))
                         self.tableWidget.setItem(i, j, item)
                     else:
                         raise
@@ -141,13 +144,74 @@ class QGameOfLife(QWidget):
         self.map = [[Point(i, j) for j in range(MAP_SIZE)] for i in range(MAP_SIZE)]
 
     def getPlants(self):
-        plants = []
+        self.plants = []
         for i in range(len(self.map)):
             for j in range(len(self.map)):
                 if self.map[i][j].isPlant():
-                    plants.append(self.map[i][j].getElement())
+                    self.plants.append(self.map[i][j].getElement())
 
-        return plants
+        return self.plants
+
+    def run(self):
+        self.timer = QTimer()
+        self.timer.setInterval(100)
+        self.timer.timeout.connect(self.tick)
+        self.timer.start()
+
+
+    def tick(self):
+        self.timer.stop()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.iterate_over_firemans())
+        self.timer.start()
+
+
+    async def iterate_over_firemans(self):
+        futures = []
+        for i in range(len(self.firefighters)):
+            futures.append(self.move_fireman(self.firefighters[i]))
+
+        asyncio.gather(*futures)
+
+    async def move_fireman(self, fireman):
+        point = fireman.getPoint()
+        i = random.randint(0, 3)
+
+        if i == 0:  # left
+            if point.y > 0 and self.map[point.x][point.y - 1].isFree():
+                self.map[point.x][point.y - 1].setAccupied()
+                self.map[point.x][point.y].setFree()
+                cellItem = self.tableWidget.takeItem(point.x, point.y)
+                cellItem.setIcon(QIcon())
+                point.y = point.y - 1
+        elif i == 1:  # up
+            if point.x > 0 and self.map[point.x - 1][point.y].isFree():
+                self.map[point.x - 1][point.y].setAccupied()
+                self.map[point.x][point.y].setFree()
+                cellItem = self.tableWidget.takeItem(point.x, point.y)
+                cellItem.setIcon(QIcon())
+                point.x = point.x - 1
+        elif i == 2:  # right
+            if point.y < MAP_SIZE - 1 and self.map[point.x][point.y + 1].isFree():
+                self.map[point.x][point.y + 1].setAccupied()
+                self.map[point.x][point.y].setFree()
+                cellItem = self.tableWidget.takeItem(point.x, point.y)
+                cellItem.setIcon(QIcon())
+                point.y = point.y + 1
+        elif i == 3:  # down
+            if point.x < MAP_SIZE - 1 and self.map[point.x + 1][point.y].isFree():
+                self.map[point.x + 1][point.y].setAccupied()
+                self.map[point.x][point.y].setFree()
+                cellItem = self.tableWidget.takeItem(point.x, point.y)
+                cellItem.setIcon(QIcon())
+                point.x = point.x + 1
+
+        cellItem = self.tableWidget.takeItem(point.x, point.y)
+        if cellItem is None:
+            cellItem = QTableWidgetItem()
+            cellItem.setIcon(QIcon(fireman.getIcon()))
+
+        self.tableWidget.setItem(point.x, point.y, cellItem)
 
 
 if __name__ == '__main__':
