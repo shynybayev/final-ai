@@ -23,4 +23,7 @@ class Fire(object):
     def getColor(self):
         return FIRE_COLOR_MAP[self.plant.__class__]
 
+    def getPoint(self):
+        return self.point
+
 
