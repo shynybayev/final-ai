@@ -52,14 +52,14 @@ class QLearningTable:
         all_costs = []
 
         for episode in range(1000):
-            m.QGameOfLife.reset(fireman)
+            m.FireBrigade.reset(fireman)
             i = 0
             cost = 0
 
             while True:
-                observation = m.QGameOfLife.render()
+                observation = m.FireBrigade.render()
                 action = self.choose_action(str(observation))
-                observation_, reward, done = m.QGameOfLife.move_fireman(action)
+                observation_, reward, done = m.FireBrigade.move_fireman(action)
                 cost += self.learn(str(observation), action, reward, str(observation_))
                 observation = observation_
                 i += 1
@@ -68,4 +68,4 @@ class QLearningTable:
                     steps += [i]
                     all_costs += [cost]
                     break
-        m.QGameOfLife.final(fireman)
+        m.FireBrigade.final(fireman)

@@ -19,7 +19,7 @@ PLANTS = {
 }
 
 
-class QGameOfLife(QWidget):
+class FireBrigade(QWidget):
 
     def __init__(self, size=(400, 400)):
         super().__init__()
@@ -105,7 +105,7 @@ class QGameOfLife(QWidget):
                     break
 
     def initUI(self):
-        self.setWindowTitle(self.tr("Game of Life"))
+        self.setWindowTitle(self.tr("Kbtu AI project"))
 
         self.layout = QVBoxLayout()
         self.layout.setSpacing(0)
@@ -228,7 +228,6 @@ class QGameOfLife(QWidget):
 if __name__ == '__main__':
     from PySide2.QtWidgets import QApplication
     import sys
-
     application = QApplication(sys.argv)
-    qGameOfLife = QGameOfLife(size=(400, 400))
+    fireBrigade = FireBrigade(size=(400, 400))
     sys.exit(application.exec_())
