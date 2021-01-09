@@ -121,7 +121,7 @@ class Environment(QWidget):
                         self.map[i][j].setElement(firefighter)
 
                         self.firefighters.append(firefighter)
-                        self.initialFireFightersPoint.append(self.map[i][j])
+                        self.initialFireFightersPoint.append(copy.deepcopy(self.map[i][j]))
 
                         item = QTableWidgetItem()
                         item.setIcon(QIcon(firefighter.getIcon()))
@@ -163,7 +163,7 @@ class Environment(QWidget):
 
                             # store plants
                             self.plants.append(plant)
-                            self.initialPlantPoint.append({plant: self.map[i][j]})
+                            self.initialPlantPoint.append({plant: copy.deepcopy(self.map[i][j])})
 
                             item = QTableWidgetItem()
                             item.setIcon(QIcon(plant.getIcon()))
@@ -206,21 +206,24 @@ class Environment(QWidget):
     def generateMap(self):
         self.map = [[Point(i, j) for j in range(MAP_SIZE)] for i in range(MAP_SIZE)]
 
-    def getPlants(self):
-        self.plants = []
-        for i in range(len(self.map)):
-            for j in range(len(self.map)):
-                if self.map[i][j].isPlant():
-                    self.plants.append(self.map[i][j].getElement())
-
-        return self.plants
+    def runInThread(self, loop):
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.tick2())
 
     def run(self):
         import threading
 
-        thread = threading.Thread(target=self.tick2)
+        loop = asyncio.get_event_loop()
+        thread = threading.Thread(target=self.runInThread, args=(loop,))
         thread.start()
+        # loop.run_until_complete(self.tick2())
 
+    def showUi(self):
+
+        import threading
+
+        thread = threading.Thread(target=self.show)
+        thread.start()
 
     def tick(self):
 
@@ -236,23 +239,6 @@ class Environment(QWidget):
         # self.timer.start()
 
     def reset(self):
-        for i in range(len(self.map)):
-            for j in range(len(self.map)):
-                if self.map[i][j].isFireFighter():
-                    self.map[i][j].setFree()
-                    item = QTableWidgetItem()
-                    self.tableWidget.setItem(i, j, item)
-
-                if self.map[i][j].isPlant():
-                    self.map[i][j].setFree()
-                    item = QTableWidgetItem()
-                    self.tableWidget.setItem(i, j, item)
-
-                if self.map[i][j].isFire():
-                    self.map[i][j].setFree()
-                    item = QTableWidgetItem()
-                    self.tableWidget.setItem(i, j, item)
-
         self.firefighters = []
         self.fire = []
         self.plants = []
@@ -260,26 +246,19 @@ class Environment(QWidget):
         self.d = {}
         self.i = 0
 
+        self.generateMap()
         self.generatePlants()
         self.generateFireFighter()
         self.generateFire()
 
-        points = []
 
-        for i in range(len(self.map)):
-            for j in range(len(self.map)):
-                points.append(self.map[i][j])
-
-                # points.index(self.initialFireFightersPoint[0])
-
-        return points.index(self.firefighters[0].point)
+        return self.initialFireFightersPoint[0]
 
     def step(self, action):
         # Current state of the agent
         fireman = self.firefighters[0]
-        point = fireman.getPoint()
-        point = copy.deepcopy(point)
-        print("first point:" + str(point))
+        point = copy.deepcopy(fireman.getPoint())
+
 
         if action == 0:    # left
             if point.y > 0:
@@ -348,13 +327,15 @@ class Environment(QWidget):
         if cellItem is None:
             cellItem = QTableWidgetItem()
 
-
         if not self.map[point.x][point.y].isPlant():
            cellItem.setIcon(QIcon(fireman.getIcon()))
 
         self.tableWidget.setItem(point.x, point.y, cellItem)
 
-        fireman.setPoint(point)
+        fpoint = fireman.getPoint()
+        fpoint.x = point.x
+        fpoint.y = point.y
+        fireman.setPoint(fpoint)
         print("after action point:" + str(point))
 
 
@@ -362,7 +343,6 @@ class Environment(QWidget):
 
         next_state = self.d[self.i]
 
-        print("next state: " + str(point))
         firePoint = self.fire[0].getPoint()
 
 
@@ -481,64 +461,57 @@ class Environment(QWidget):
 
         return a
 
-    def tick2(self):
+    async def tick2(self):
 
-        points = []
-
-        for i in range(len(self.map)):
-            for j in range(len(self.map)):
-                points.append(self.map[i][j])
 
         print("ticker")
         goal = False
         steps = []
         all_costs = []
-        for episode in range(1000):
+        for episode in range(100):
             print("start: " + str(episode))
 
             observation = self.reset()
-            observation = copy.deepcopy(observation)
+            print(str(observation) + ": " + str(observation.x * MAP_SIZE + observation.y))
+            observation = observation.x * MAP_SIZE + observation.y
 
             i = 0
             cost = 0
             while True:
 
-                sleep(2)
+                sleep(0.5)
                 print(observation)
                 action = RL.choose_action(observation)
 
                 a = {
-                    0 : "left",
-                    1 : "up",
-                    2 : "right",
-                    3 : "down",
+                    0: "left",
+                    1: "up",
+                    2: "right",
+                    3: "down",
                 }
 
                 print(a[action])
                 observation_, reward, done = self.step(action)
 
                 if type(observation_) != str:
-                    for i in range(len(points)):
-                        if type(observation_) == Point and observation_.x == points[i].x and observation_.y == points[i].y:
-                            print("step" + str(observation_))
-                            observation_ = i
-                        else:
-                            observation_ = i
+                    if type(observation_) == Point:
+                        observation_ = observation_.x * MAP_SIZE + observation_.y
+
 
                 cost += RL.learn(observation, action, reward, observation_)
                 observation = observation_
                 if observation_ == "goal":
                     goal = True
 
-                print(cost)
                 i += 1
 
                 if done:
                     steps += [i]
                     all_costs += [cost]
                     break
-            if goal:
-                break
+            # if goal:
+            #     break
+
         # self.timer.stop()
         a = self.final()
         RL.print_q_table(a)
