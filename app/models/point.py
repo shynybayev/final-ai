@@ -1,4 +1,6 @@
 from .plant import *
+from .fire import *
+from .fireman import *
 
 
 class Point(object):
@@ -30,5 +32,11 @@ class Point(object):
     def isPlant(self):
         return self.element.__class__ in [Tree, Grass, Shrub]
 
+    def isFire(self):
+        return self.element.__class__ in [Fire]
+
+    def isFireFighter(self):
+        return self.element.__class__ in [Firefighter]
+
     def __str__(self):
-        return f"x: {self.x}; y: {self.y}"
+        return f"({self.x}, {self.y})"

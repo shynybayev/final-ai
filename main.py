@@ -1,31 +1,53 @@
-import asyncio
+from time import sleep
 
-from PySide2.QtCore import *
-from PySide2.QtGui import *
 from PySide2.QtWidgets import *
+from PyQt5.QtCore import QObject, QThread, pyqtSignal
+from PySide2.QtGui import *
+import random
+import asyncio
+import copy
 
-from app.models.fire import *
+from app.models.plant import *
 from app.models.fireman import *
 from app.models.point import *
-from app.services.agent import *
+from app.models.fire import *
+from app.models.models import *
 
-MAP_SIZE = 10
-FIREMAN_COUNT = 3
+MAP_SIZE = 5
+FIREMAN_COUNT = 1
 
 PLANTS = {
-    Tree: 3,
-    Grass: 3,
-    Shrub: 3
+    Tree: 1,
+    Grass: 1,
+    Shrub: 1
 }
 
 
-class FireBrigade(QWidget):
+class Environment(QWidget):
 
     def __init__(self, size=(400, 400)):
         super().__init__()
+
+        # initialize base elements
+        self.plants = []
+        self.map = []
+        self.firefighters = []
+        self.initialFireFightersPoint = []
+        self.initialPlantPoint = []
+        self.initialFirePoint = []
+        self.fire = []
+
         self.d = {}
+        self.f = {}
         self.i = 0
-        self.action_space = ['up', 'down', 'left', 'right']
+        self.c = True
+
+        # Showing the steps for longest found route
+        self.longest = 0
+
+        # Showing the steps for the shortest route
+        self.shortest = 0
+
         self.size = size
         self.generateMap()
         self.initUI()
@@ -33,24 +55,36 @@ class FireBrigade(QWidget):
         self.generateFireFighter()
         self.generateFire()
         self.show()
-        # self.startQLearningRun()
+
         self.run()
 
     def generateFire(self):
-        plants = self.getPlants()
+        if len(self.initialFirePoint) > 0:
+            for i in range(len(self.initialFirePoint)):
+                fire = self.initialFirePoint[i]
+                self.fire.append(fire)
+                fire.setFire()
 
-        for s in range(3):
+                cellItem = self.tableWidget.takeItem(fire.point.x, fire.point.y)
+                cellItem.setBackgroundColor(fire.getColor())
+                self.tableWidget.setItem(fire.point.x, fire.point.y, cellItem)
+            return
+
+        for s in range(1):
             while True:
-                # sleep(2)
                 try:
-                    i = random.randint(0, len(plants) - 1)
-                    plant = plants[i]
+                    i = random.randint(0, len(self.plants) - 1)
+                    plant = self.plants[i]
 
                     if plant.isBurning():
                         raise
 
                     fire = Fire(plant, plant.point)
                     fire.setFire()
+
+                    self.fire.append(fire)
+                    self.initialFirePoint.append(fire)
+
                     cellItem = self.tableWidget.takeItem(plant.point.x, plant.point.y)
                     cellItem.setBackgroundColor(fire.getColor())
                     self.tableWidget.setItem(plant.point.x, plant.point.y, cellItem)
@@ -59,8 +93,22 @@ class FireBrigade(QWidget):
                 break
 
     def generateFireFighter(self):
-        self.firefighters = []
+        if len(self.initialFireFightersPoint) > 0:
 
+            print("generate from initialpoints")
+
+            for i in range(len(self.initialFireFightersPoint)):
+                point = self.initialFireFightersPoint[i]
+                self.map[point.x][point.y].setAccupied()
+                firefighter = Firefighter(self.map[point.x][point.y])
+                self.map[point.x][point.y].setElement(firefighter)
+
+                self.firefighters.append(firefighter)
+
+                item = QTableWidgetItem()
+                item.setIcon(QIcon(firefighter.getIcon()))
+                self.tableWidget.setItem(point.x, point.y, item)
+            return
         for _ in range(FIREMAN_COUNT):
             while True:
                 try:
@@ -71,7 +119,9 @@ class FireBrigade(QWidget):
                         self.map[i][j].setAccupied()
                         firefighter = Firefighter(self.map[i][j])
                         self.map[i][j].setElement(firefighter)
+
                         self.firefighters.append(firefighter)
+                        self.initialFireFightersPoint.append(copy.deepcopy(self.map[i][j]))
 
                         item = QTableWidgetItem()
                         item.setIcon(QIcon(firefighter.getIcon()))
@@ -83,6 +133,22 @@ class FireBrigade(QWidget):
                 break
 
     def generatePlants(self):
+        if len(self.initialPlantPoint) > 0:
+            for i in range(len(self.initialPlantPoint)):
+                for k in self.initialPlantPoint[i].keys():
+                    point = self.initialPlantPoint[i][k]
+
+
+                    self.map[point.x][point.y].setAccupied()
+                    self.plants.append(k)
+                    self.map[point.x][point.y].setElement(k)
+
+                    item = QTableWidgetItem()
+                    item.setIcon(QIcon(k.getIcon()))
+                    self.tableWidget.setItem(point.x, point.y, item)
+
+            return
+
         for k in PLANTS.keys():
             for _ in range(PLANTS[k]):
                 while True:
@@ -95,6 +161,10 @@ class FireBrigade(QWidget):
                             plant = k(3, self.map[i][j])
                             self.map[i][j].setElement(plant)
 
+                            # store plants
+                            self.plants.append(plant)
+                            self.initialPlantPoint.append({plant: copy.deepcopy(self.map[i][j])})
+
                             item = QTableWidgetItem()
                             item.setIcon(QIcon(plant.getIcon()))
                             self.tableWidget.setItem(i, j, item)
@@ -105,15 +175,11 @@ class FireBrigade(QWidget):
                     break
 
     def initUI(self):
-        self.setWindowTitle(self.tr("Kbtu AI project"))
+        self.setWindowTitle(self.tr("FireFighters"))
 
         self.layout = QVBoxLayout()
         self.layout.setSpacing(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
-
-        self.item = None
-        self.timer = QTimer()
-        self.timer.setInterval(10)
 
         self.createTable()
         self.layout.addWidget(self.tableWidget)
@@ -131,60 +197,209 @@ class FireBrigade(QWidget):
         self.tableWidget.setRowCount(MAP_SIZE)
         self.tableWidget.setColumnCount(MAP_SIZE)
         self.tableWidget.setEditTriggers(QTableWidget.NoEditTriggers)
+
         for i in range(10):
             for j in range(10):
                 self.tableWidget.setColumnWidth(i, 50)
                 self.tableWidget.setRowHeight(j, 50)
 
-    def render(self):
-        self.tableWidget.update()
-    def final(self, fireman):
-        self.tableWidget.deleteLater(fireman)
-    def reset(self, fireman):
-        self.tableWidget.update()
-        self.tableWidget.deleteLater(fireman)
-
     def generateMap(self):
         self.map = [[Point(i, j) for j in range(MAP_SIZE)] for i in range(MAP_SIZE)]
 
-    def getPlants(self):
-        self.plants = []
-        for i in range(len(self.map)):
-            for j in range(len(self.map)):
-                if self.map[i][j].isPlant():
-                    self.plants.append(self.map[i][j].getElement())
-
-        return self.plants
+    def runInThread(self, loop):
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.tick2())
 
     def run(self):
-        self.timer = QTimer()
-        self.timer.setInterval(100)
-        self.timer.timeout.connect(self.tick)
-        self.timer.start()
+        import threading
 
+        loop = asyncio.get_event_loop()
+        thread = threading.Thread(target=self.runInThread, args=(loop,))
+        thread.start()
+        # loop.run_until_complete(self.tick2())
+
+    def showUi(self):
+
+        import threading
+
+        thread = threading.Thread(target=self.show)
+        thread.start()
 
     def tick(self):
-        self.timer.stop()
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.iterate_over_firemans())
-        self.timer.start()
-    # def startQLearningRun(self):
 
+        # self.timer.stop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        while True:
+            # loop = asyncio.get_event_loop()
+            sleep(2)
+            print("tick")
+            loop.run_until_complete(self.iterate_over_firemans())
+        #
+        # self.timer.start()
+
+    def reset(self):
+        self.firefighters = []
+        self.fire = []
+        self.plants = []
+
+        self.d = {}
+        self.i = 0
+
+        self.generateMap()
+        self.generatePlants()
+        self.generateFireFighter()
+        self.generateFire()
+
+
+        return self.initialFireFightersPoint[0]
+
+    def step(self, action):
+        # Current state of the agent
+        fireman = self.firefighters[0]
+        point = copy.deepcopy(fireman.getPoint())
+
+
+        if action == 0:    # left
+            if point.y > 0:
+                self.map[point.x][point.y - 1].setAccupied()
+                self.map[point.x][point.y - 1].setElement(fireman)
+                self.map[point.x][point.y].setFree()
+
+                self.tableWidget.setItem(point.x, point.y, QTableWidgetItem())
+
+                point.y = point.y - 1
+
+                item = self.tableWidget.takeItem(point.x, point.y)
+                if item is None:
+                    item = QTableWidgetItem()
+                item.setBackgroundColor("green")
+                self.tableWidget.setItem(point.x, point.y, item)
+
+        elif action == 1:  # up
+            if point.x > 0:
+                self.map[point.x - 1][point.y].setAccupied()
+                self.map[point.x - 1][point.y].setElement(fireman)
+                self.map[point.x][point.y].setFree()
+
+                self.tableWidget.setItem(point.x, point.y, QTableWidgetItem())
+
+                point.x = point.x - 1
+                item = self.tableWidget.takeItem(point.x, point.y)
+                if item is None:
+                    item = QTableWidgetItem()
+                item.setBackgroundColor("green")
+                self.tableWidget.setItem(point.x, point.y, item)
+
+        elif action == 2:  # right
+            if point.y < MAP_SIZE - 1:
+                self.map[point.x][point.y + 1].setAccupied()
+                self.map[point.x][point.y + 1].setElement(fireman)
+                self.map[point.x][point.y].setFree()
+
+                self.tableWidget.setItem(point.x, point.y, QTableWidgetItem())
+
+                point.y = point.y + 1
+                item = self.tableWidget.takeItem(point.x, point.y)
+                if item is None:
+                    item = QTableWidgetItem()
+                item.setBackgroundColor("green")
+                self.tableWidget.setItem(point.x, point.y, item)
+
+        elif action == 3:  # down
+            if point.x < MAP_SIZE - 1:
+                self.map[point.x + 1][point.y].setAccupied()
+                self.map[point.x + 1][point.y].setElement(fireman)
+                self.map[point.x][point.y].setFree()
+
+                self.tableWidget.setItem(point.x, point.y, QTableWidgetItem())
+
+
+                point.x = point.x + 1
+                item = self.tableWidget.takeItem(point.x, point.y)
+                if item is None:
+                    item = QTableWidgetItem()
+                item.setBackgroundColor("green")
+                self.tableWidget.setItem(point.x, point.y, item)
+
+        cellItem = self.tableWidget.takeItem(point.x, point.y)
+
+        if cellItem is None:
+            cellItem = QTableWidgetItem()
+
+        if not self.map[point.x][point.y].isPlant():
+           cellItem.setIcon(QIcon(fireman.getIcon()))
+
+        self.tableWidget.setItem(point.x, point.y, cellItem)
+
+        fpoint = fireman.getPoint()
+        fpoint.x = point.x
+        fpoint.y = point.y
+        fireman.setPoint(fpoint)
+        print("after action point:" + str(point))
+
+
+        self.d[self.i] = point
+
+        next_state = self.d[self.i]
+
+        firePoint = self.fire[0].getPoint()
+
+
+        self.i += 1
+
+        # print(list(map(lambda x: x.getPoint(), self.plants)))
+        # Calculating the reward for the agent
+        if next_state.x == firePoint.x and next_state.y == firePoint.y:
+            reward = 1
+            done = True
+            next_state = 'goal'
+
+            # Filling the dictionary first time
+            if self.c == True:
+                for j in range(len(self.d)):
+                    self.f[j] = self.d[j]
+                self.c = False
+                self.longest = len(self.d)
+                self.shortest = len(self.d)
+
+            # Checking if the currently found route is shorter
+            if len(self.d) < len(self.f):
+                # Saving the number of steps for the shortest route
+                self.shortest = len(self.d)
+                # Clearing the dictionary for the final route
+                self.f = {}
+                # Reassigning the dictionary
+                for j in range(len(self.d)):
+                    self.f[j] = self.d[j]
+
+            # Saving the number of steps for the longest route
+            if len(self.d) > self.longest:
+                self.longest = len(self.d)
+
+        elif len(list(filter(lambda x: x.getPoint().x == next_state.x and x.getPoint().y == next_state.y, self.plants))) > 0:
+            reward = -1
+            done = True
+            next_state = 'obstacle'
+
+            # Clearing the dictionary and the i
+            self.d = {}
+            self.i = 0
+
+        else:
+            # next_state = (next_state.x + 1) * (next_state.y + 1)
+            reward = 0
+            done = False
+
+        return next_state, reward, done
 
     async def iterate_over_firemans(self):
         futures = []
         for i in range(len(self.firefighters)):
             futures.append(self.move_fireman(self.firefighters[i]))
-            # futures.append(self.move_fireman_qlearning(self.firefighters[i]))
-        asyncio.gather(*futures)
 
-    async def move_fireman_qlearning(self, fireman):
-        qLearnTable = QLearningTable(actions=list(range(len(self.action_space))))
-        # qLearnTable.update(100, list[fireman.getPoint()], fireman)
-        qLearnTable.update(100, fireman)
-        action = qLearnTable.choose_action(fireman.getPoint())
-        self.move_fireman(fireman)
 
+        await asyncio.gather(*futures)
 
     async def move_fireman(self, fireman):
         point = fireman.getPoint()
@@ -225,9 +440,89 @@ class FireBrigade(QWidget):
 
         self.tableWidget.setItem(point.x, point.y, cellItem)
 
+    def final(self):
+
+        # Creating initial point
+        self.initial_point = self.initialFireFightersPoint[0]
+        a = {}
+        # Filling the route
+        for j in range(len(self.f)):
+            # Showing the coordinates of the final route
+            # print(self.f[j])
+
+            item = QTableWidgetItem()
+            item.setBackgroundColor("black")
+
+            self.tableWidget.setItem(self.f[j].x, self.f[j].y, item)
+
+            # Writing the final route in the global variable a
+            a[j] = self.f[j]
+
+        return a
+
+    async def tick2(self):
+
+
+        print("ticker")
+        goal = False
+        steps = []
+        all_costs = []
+        for episode in range(100):
+            print("start: " + str(episode))
+
+            observation = self.reset()
+            print(str(observation) + ": " + str(observation.x * MAP_SIZE + observation.y))
+            observation = observation.x * MAP_SIZE + observation.y
+
+            i = 0
+            cost = 0
+            while True:
+
+                sleep(0.5)
+                print(observation)
+                action = RL.choose_action(observation)
+
+                a = {
+                    0: "left",
+                    1: "up",
+                    2: "right",
+                    3: "down",
+                }
+
+                print(a[action])
+                observation_, reward, done = self.step(action)
+
+                if type(observation_) != str:
+                    if type(observation_) == Point:
+                        observation_ = observation_.x * MAP_SIZE + observation_.y
+
+
+                cost += RL.learn(observation, action, reward, observation_)
+                observation = observation_
+                if observation_ == "goal":
+                    goal = True
+
+                i += 1
+
+                if done:
+                    steps += [i]
+                    all_costs += [cost]
+                    break
+            # if goal:
+            #     break
+
+        # self.timer.stop()
+        a = self.final()
+        RL.print_q_table(a)
+        RL.plot_results(steps, all_costs)
+
+RL = QLearningTable(actions=list(range(4)))
+
 if __name__ == '__main__':
     from PySide2.QtWidgets import QApplication
     import sys
+
     application = QApplication(sys.argv)
-    fireBrigade = FireBrigade(size=(400, 400))
+    env = Environment()
+
     sys.exit(application.exec_())

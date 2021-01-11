@@ -1,13 +1,24 @@
 import os
 
-class Tree(object):
+class Plant(object):
+
+    def __init__(self, point):
+        self.point =  point
+
+    def getPoint(self):
+        return self.point
+
+    def getPointAsInt(self):
+        return (self.point.x + 1) * (self.point.y + 1)
+
+class Tree(Plant):
     BURNING_AREA = 3
 
     def __init__(self, intensity, point):
+        super().__init__(point)
         self.intensity = intensity
         self.burning = False
         self.burnArea = self.__class__.BURNING_AREA
-        self.point = point
 
     def isBurning(self):
         return self.burning
@@ -30,14 +41,15 @@ class Tree(object):
 
 
 
-class Shrub(object):
+
+class Shrub(Plant):
     BURNING_AREA = 2
 
     def __init__(self, intensity, point):
+        super().__init__(point)
         self.intensity = intensity
         self.burning = False
         self.burnArea = self.__class__.BURNING_AREA
-        self.point = point
 
     def isBurning(self):
         return self.burning
@@ -52,14 +64,14 @@ class Shrub(object):
         return os.path.join('app', 'resources', 'shrub.jpg')
 
 
-class Grass(object):
+class Grass(Plant):
     BURNING_AREA = 3
 
     def __init__(self, intensity, point):
+        super().__init__(point)
         self.intensity = intensity
         self.burning = False
         self.burnArea = self.__class__.BURNING_AREA
-        self.point = point
 
     def isBurning(self):
         return self.burning
