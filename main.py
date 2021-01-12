@@ -1,12 +1,12 @@
+from concurrent.futures.thread import ThreadPoolExecutor
 from time import sleep
-
+import aiohttp
 from PySide2.QtWidgets import *
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from PySide2.QtGui import *
 import random
 import asyncio
 import copy
-
 from app.models.plant import *
 from app.models.fireman import *
 from app.models.point import *
@@ -17,9 +17,9 @@ MAP_SIZE = 5
 FIREMAN_COUNT = 1
 
 PLANTS = {
-    Tree: 1,
-    Grass: 1,
-    Shrub: 1
+    Tree: 2,
+    Grass: 2,
+    Shrub: 2
 }
 
 
@@ -28,7 +28,6 @@ class Environment(QWidget):
     def __init__(self, size=(400, 400)):
         super().__init__()
 
-        # initialize base elements
         self.plants = []
         self.map = []
         self.firefighters = []
@@ -42,10 +41,7 @@ class Environment(QWidget):
         self.i = 0
         self.c = True
 
-        # Showing the steps for longest found route
         self.longest = 0
-
-        # Showing the steps for the shortest route
         self.shortest = 0
 
         self.size = size
@@ -55,7 +51,6 @@ class Environment(QWidget):
         self.generateFireFighter()
         self.generateFire()
         self.show()
-
         self.run()
 
     def generateFire(self):
@@ -94,8 +89,6 @@ class Environment(QWidget):
 
     def generateFireFighter(self):
         if len(self.initialFireFightersPoint) > 0:
-
-            print("generate from initialpoints")
 
             for i in range(len(self.initialFireFightersPoint)):
                 point = self.initialFireFightersPoint[i]
@@ -161,7 +154,6 @@ class Environment(QWidget):
                             plant = k(3, self.map[i][j])
                             self.map[i][j].setElement(plant)
 
-                            # store plants
                             self.plants.append(plant)
                             self.initialPlantPoint.append({plant: copy.deepcopy(self.map[i][j])})
 
@@ -208,15 +200,30 @@ class Environment(QWidget):
 
     def runInThread(self, loop):
         asyncio.set_event_loop(loop)
+        # asyncio.sleep(2)
         loop.run_until_complete(self.tick2())
+        # loop.close(self)
 
     def run(self):
         import threading
 
         loop = asyncio.get_event_loop()
-        thread = threading.Thread(target=self.runInThread, args=(loop,))
-        thread.start()
-        # loop.run_until_complete(self.tick2())
+        th = threading.Thread(target=self.runInThread, args=(loop,))
+        th.start()
+
+        # task1 = asyncio.create_task(self.move_first_fireman())
+        # task2 = asyncio.create_task(self.move_first_fireman_1())
+        # await asyncio.gather(task1, task2)
+        # import threading
+        # threads = []
+        # loop = asyncio.get_event_loop()
+        # loop2 = asyncio.get_event_loop()
+        # for i in range(5):
+        # loop2 = asyncio.get_event_loop()
+        # th = threading.Thread(target=self.runInThread,args=(loop,))
+        # th.start()
+        # th2 = threading.Thread(target=self.runInThread2,args=(loop2,))
+        # th2.start()
 
     def showUi(self):
 
@@ -225,18 +232,6 @@ class Environment(QWidget):
         thread = threading.Thread(target=self.show)
         thread.start()
 
-    def tick(self):
-
-        # self.timer.stop()
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        while True:
-            # loop = asyncio.get_event_loop()
-            sleep(2)
-            print("tick")
-            loop.run_until_complete(self.iterate_over_firemans())
-        #
-        # self.timer.start()
 
     def reset(self):
         self.firefighters = []
@@ -260,7 +255,7 @@ class Environment(QWidget):
         point = copy.deepcopy(fireman.getPoint())
 
 
-        if action == 0:    # left
+        if action == 0:    # налево
             if point.y > 0:
                 self.map[point.x][point.y - 1].setAccupied()
                 self.map[point.x][point.y - 1].setElement(fireman)
@@ -276,7 +271,7 @@ class Environment(QWidget):
                 item.setBackgroundColor("green")
                 self.tableWidget.setItem(point.x, point.y, item)
 
-        elif action == 1:  # up
+        elif action == 1:  # вверх
             if point.x > 0:
                 self.map[point.x - 1][point.y].setAccupied()
                 self.map[point.x - 1][point.y].setElement(fireman)
@@ -291,7 +286,7 @@ class Environment(QWidget):
                 item.setBackgroundColor("green")
                 self.tableWidget.setItem(point.x, point.y, item)
 
-        elif action == 2:  # right
+        elif action == 2:  # направо
             if point.y < MAP_SIZE - 1:
                 self.map[point.x][point.y + 1].setAccupied()
                 self.map[point.x][point.y + 1].setElement(fireman)
@@ -306,7 +301,7 @@ class Environment(QWidget):
                 item.setBackgroundColor("green")
                 self.tableWidget.setItem(point.x, point.y, item)
 
-        elif action == 3:  # down
+        elif action == 3:  # вниз
             if point.x < MAP_SIZE - 1:
                 self.map[point.x + 1][point.y].setAccupied()
                 self.map[point.x + 1][point.y].setElement(fireman)
@@ -349,13 +344,11 @@ class Environment(QWidget):
         self.i += 1
 
         # print(list(map(lambda x: x.getPoint(), self.plants)))
-        # Calculating the reward for the agent
         if next_state.x == firePoint.x and next_state.y == firePoint.y:
             reward = 1
             done = True
             next_state = 'goal'
 
-            # Filling the dictionary first time
             if self.c == True:
                 for j in range(len(self.d)):
                     self.f[j] = self.d[j]
@@ -363,17 +356,12 @@ class Environment(QWidget):
                 self.longest = len(self.d)
                 self.shortest = len(self.d)
 
-            # Checking if the currently found route is shorter
             if len(self.d) < len(self.f):
-                # Saving the number of steps for the shortest route
                 self.shortest = len(self.d)
-                # Clearing the dictionary for the final route
                 self.f = {}
-                # Reassigning the dictionary
                 for j in range(len(self.d)):
                     self.f[j] = self.d[j]
 
-            # Saving the number of steps for the longest route
             if len(self.d) > self.longest:
                 self.longest = len(self.d)
 
@@ -382,7 +370,7 @@ class Environment(QWidget):
             done = True
             next_state = 'obstacle'
 
-            # Clearing the dictionary and the i
+            # Очистка значении в dictionary и его коунтера i
             self.d = {}
             self.i = 0
 
@@ -398,12 +386,12 @@ class Environment(QWidget):
         for i in range(len(self.firefighters)):
             futures.append(self.move_fireman(self.firefighters[i]))
 
-
         await asyncio.gather(*futures)
 
     async def move_fireman(self, fireman):
         point = fireman.getPoint()
         i = random.randint(0, 3)
+
         if i == 0:  # налево
             if point.y > 0 and self.map[point.x][point.y - 1].isFree():
                 self.map[point.x][point.y - 1].setAccupied()
@@ -442,12 +430,9 @@ class Environment(QWidget):
 
     def final(self):
 
-        # Creating initial point
         self.initial_point = self.initialFireFightersPoint[0]
         a = {}
-        # Filling the route
         for j in range(len(self.f)):
-            # Showing the coordinates of the final route
             # print(self.f[j])
 
             item = QTableWidgetItem()
@@ -455,14 +440,14 @@ class Environment(QWidget):
 
             self.tableWidget.setItem(self.f[j].x, self.f[j].y, item)
 
-            # Writing the final route in the global variable a
             a[j] = self.f[j]
 
         return a
 
+    from _datetime import datetime
+
     async def tick2(self):
-
-
+        print(self.datetime.now())
         print("ticker")
         goal = False
         steps = []
@@ -511,7 +496,6 @@ class Environment(QWidget):
             # if goal:
             #     break
 
-        # self.timer.stop()
         a = self.final()
         RL.print_q_table(a)
         RL.plot_results(steps, all_costs)

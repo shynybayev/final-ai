@@ -13,6 +13,7 @@ class QLearningTable:
         self.q_table_final = pd.DataFrame(columns=self.actions, dtype=np.float64)
 
     def check_state_exist(self, state):
+        print("next_state: " + str(state))
         if state not in self.q_table.index:
             self.q_table = self.q_table.append(
                 pd.Series(
@@ -54,25 +55,23 @@ class QLearningTable:
     def print_q_table(self, a):
         e = a
 
-        # Comparing the indexes with coordinates and writing in the new Q-table values
         for i in range(len(e)):
-            state = str(e[i])  # state = '[5.0, 40.0]'
-            # Going through all indexes and checking
+            state = str(e[i])
             for j in range(len(self.q_table.index)):
                 if self.q_table.index[j] == state:
-                    self.q_table_final.loc[state, :] = self.q_table.loc[state, :]
+                 self.q_table_final.loc[state, :] += self.q_table.loc[state, :]
+                # self.q_table_final.loc[state, str(e[j])]
 
-        print()
-        print('Length of final Q-table =', len(self.q_table_final.index))
-        print('Final Q-table with values from the final route:')
-        print(self.q_table_final)
+        # print()
+        # print('Length of final Q-table =', len(self.q_table_final.index))
+        # print('Final Q-table with values from the final route:')
+        # print(self.q_table_final)
 
         print()
         print('Length of full Q-table =', len(self.q_table.index))
         print('Full Q-table:')
         print(self.q_table)
 
-    # Plotting the results for the number of steps
     def plot_results(self, steps, cost):
         #
         f, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
@@ -88,7 +87,7 @@ class QLearningTable:
         ax2.set_ylabel('Cost')
         ax2.set_title('Episode via cost')
 
-        plt.tight_layout()  # Function to make distance between figures
+        plt.tight_layout()
 
         #
         plt.figure()
